@@ -33,7 +33,7 @@ struct Home: View {
                 //Selector de tienda
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Sucursal")
-                        .font(.footnote)
+                        .font(.custom("Nexa-Heavy", size: 13, relativeTo: .footnote))
                         .foregroundStyle(.secondary)
                     Menu {
                         ForEach(StoreMock.allCases, id: \.self) { store in
@@ -52,6 +52,7 @@ struct Home: View {
                         HStack(spacing: 4) {
                             Text(viewModel.storeSelection.name)
                                 .contentTransition(.numericText())
+                                .font(.custom("Nexa-Heavy", size: 17, relativeTo: .footnote))
                             Image(systemName: "chevron.down")
                                 .font(.subheadline)
                         }
