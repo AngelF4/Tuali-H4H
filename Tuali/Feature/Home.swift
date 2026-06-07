@@ -14,12 +14,11 @@ struct Home: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    RoundedRectangle(cornerRadius: 16)
-                        .frame(height: 200)
+                    categorySection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .contentMargins(24)
+            .contentMargins(.horizontal, 24)
             .safeAreaInset(edge: .top) {
                 toolbar
             }
@@ -27,70 +26,68 @@ struct Home: View {
     }
     
     @ViewBuilder
-    private var toolbar: some View {
-        VStack(spacing: 0) {
+    private var categorySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                //Selector de tienda
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Sucursal")
-                        .font(.custom("Nexa-Heavy", size: 13, relativeTo: .footnote))
-                        .foregroundStyle(.secondary)
-                    Menu {
-                        ForEach(StoreMock.allCases, id: \.self) { store in
-                            Button {
-                                viewModel.storeSelection = store
-                            } label: {
-                                HStack {
-                                    if store == viewModel.storeSelection {
-                                        Image(systemName: "checkmark")
-                                    }
-                                    Text(store.name)
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(viewModel.storeSelection.name)
-                                .contentTransition(.numericText())
-                                .font(.custom("Nexa-Heavy", size: 17, relativeTo: .footnote))
-                            Image(systemName: "chevron.down")
-                                .font(.subheadline)
-                        }
-                        .animation(.default, value: viewModel.storeSelection)
-                    }
-                }
+                Text("Categorías")
+                    .font(.custom("Nexa-Heavy", size: 24, relativeTo: .title2))
                 Spacer()
-                //botones de navegación
-                NavigationLink {
-                    Text("Perfil")
-                } label: {
-                    Image(systemName: "gear")
-                        .font(.title2)
+                Button("Ver todo") {
+                    
                 }
-                
+                .font(.custom("Nexa-Heavy", size: 17, relativeTo: .headline))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(.secondarySystemGroupedBackground))
             
-            Rectangle()
-                .frame(height: 1)
-                .foregroundStyle(.separator)
         }
     }
-}
-
-enum StoreMock: Equatable, CaseIterable {
-    case store1
-    case store2
     
-    var name: String {
-        switch self {
-            case .store1:
-                "Tienda San José"
-            case .store2:
-                "Tienda Pedro de Dante"
+    @ViewBuilder
+    private var toolbar: some View {
+        VStack(spacing: 0) {
+            VStack {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Buenos dias")
+                            .font(.custom("Nexa-Heavy", size: 13, relativeTo: .footnote))
+                            .foregroundStyle(.white.secondary)
+                        Text("Hola, María 👋")
+                            .font(.custom("Nexa-Heavy", size: 24, relativeTo: .title))
+                            .foregroundStyle(.white)
+                        Text("Tienda La Esperanza")
+                            .font(.custom("Nexa-Heavy", size: 13, relativeTo: .footnote))
+                            .foregroundStyle(.white.secondary)
+                    }
+                    Spacer()
+                    NavigationLink {
+                        Text("Notificaciones")
+                    } label: {
+                        Image(systemName: "bell")
+                            .fontWeight(.medium)
+                            .padding(4)
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.circle)
+                    .tint(.white)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.tertiary)
+                    TextField("Buscar Cocacola, Bokaditos, ...",
+                              text: $viewModel.searchText,
+                              axis: .horizontal)
+                    .font(.headline)
+                }
+                .padding(.horizontal, 4)
+                .padding(8)
+                .background(Color(.secondarySystemGroupedBackground))
+                .clipShape(.rect(cornerRadius: 8))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.accent)
+            
         }
     }
 }
@@ -102,7 +99,7 @@ enum StoreMock: Equatable, CaseIterable {
 @MainActor
 @Observable
 final class HomeViewModel {
-    var storeSelection: StoreMock = .store1
+    var searchText: String = ""
     
     
 }

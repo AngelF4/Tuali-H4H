@@ -9,5 +9,12 @@
 	</array>
 	<key>UIDesignRequiresCompatibility</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Tuali necesita acceso a la red local para descubrir y conectarse con dispositivos cercanos.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tuali-mpc._tcp</string>
+		<string>_tuali-mpc._udp</string>
+	</array>
 </dict>
 </plist>
