@@ -8,21 +8,25 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var cart = CartStore()
+    
     var body: some View {
         TabView {
             Tab("Inicio", image: "home.fill") {
                 Home()
             }
             Tab("Pedidos", systemImage: "cart") {
-                
+                Orders()
             }
-            Tab("Recompensas", image: "apple.cash") {
-                
+            .badge(cart.totalCount)
+            Tab("Recompensas", systemImage: "star") {
+                Rewards()
             }
             Tab("Perfil", systemImage: "person") {
-                
+                Profile()
             }
         }
+        .environment(cart)
     }
 }
 
