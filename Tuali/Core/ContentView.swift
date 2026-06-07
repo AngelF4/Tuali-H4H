@@ -13,11 +13,10 @@ struct ContentView: View {
             Tab("Inicio", image: "home.fill") {
                 Home()
             }
-            Tab("Asistente Virtual",
-                image: "tray.fill.badge.sparkles") {
+            Tab("Pedidos", systemImage: "cart") {
                 
             }
-            Tab("Carrito", systemImage: "cart") {
+            Tab("Recompensas", image: "apple.cash") {
                 
             }
             Tab("Perfil", systemImage: "person") {

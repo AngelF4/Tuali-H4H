@@ -2,7 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Nexa-ExtraLight.ttf</string>
+		<string>Nexa-Heavy.ttf</string>
+	</array>
 	<key>UIDesignRequiresCompatibility</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Tuali necesita acceso a la red local para descubrir y conectarse con dispositivos cercanos.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_tuali-mpc._tcp</string>
+		<string>_tuali-mpc._udp</string>
+	</array>
 </dict>
 </plist>
