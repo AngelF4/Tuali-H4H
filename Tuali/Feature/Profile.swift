@@ -9,6 +9,7 @@ import SwiftUI
 
 struct Profile: View {
     @State private var viewModel = ProfileViewModel()
+    @Environment(StoreDataStore.self) private var storeData
     
     var body: some View {
         NavigationStack {
@@ -16,6 +17,7 @@ struct Profile: View {
                 VStack(alignment: .leading, spacing: 20) {
                     statsRow
                     businessSection
+                    monthlyReportsSection
                     supportSection
                     signOutButton
                 }
@@ -74,11 +76,7 @@ struct Profile: View {
                     .multilineTextAlignment(.center)
             }
             
-            Image(systemName: "qrcode")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 140, height: 140)
-                .foregroundStyle(.primary)
+            QRCodeView(payload: storeData.profileQRPayload, size: 160)
             
             Text("ID: \(viewModel.store.id) · Toca para ampliar")
                 .font(.caption2)
@@ -95,9 +93,9 @@ struct Profile: View {
     @ViewBuilder
     private var statsRow: some View {
         HStack(spacing: 10) {
-            statCard(value: viewModel.stats.monthlySales, label: "Compras mes")
-            statCard(value: viewModel.stats.points, label: "Puntos")
-            statCard(value: viewModel.stats.orders, label: "Pedidos")
+            statCard(value: storeData.monthlyPurchases.formatted(.currency(code: "MXN")), label: "Compras mes")
+            statCard(value: storeData.points.formatted(), label: "Puntos")
+            statCard(value: storeData.completedOrders.formatted(), label: "Pedidos")
         }
     }
     
@@ -126,6 +124,41 @@ struct Profile: View {
     @ViewBuilder
     private var supportSection: some View {
         section(title: "SOPORTE", rows: viewModel.supportRows)
+    }
+    
+    private var monthlyReportsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("REPORTES Y VISITAS")
+                .font(.custom("Nexa-Heavy", size: 12, relativeTo: .caption))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+            
+            NavigationLink {
+                StoreMonthlyReportsView()
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "doc.text.fill")
+                        .foregroundStyle(.indigo)
+                        .frame(width: 32, height: 32)
+                        .background(.indigo.opacity(0.15))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Reportes mensuales")
+                            .font(.custom("Nexa-Heavy", size: 15, relativeTo: .subheadline))
+                        Text("Comentarios, métricas y firmas de visitas")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(16)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(.rect(cornerRadius: 16))
+            }
+            .buttonStyle(.plain)
+        }
     }
     
     @ViewBuilder
@@ -202,6 +235,34 @@ struct Profile: View {
                 .clipShape(.rect(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct StoreMonthlyReportsView: View {
+    @Environment(StoreDataStore.self) private var storeData
+    
+    var body: some View {
+        List(storeData.monthlyReports) { report in
+            Section(report.month) {
+                LabeledContent("Compras", value: report.sales, format: .currency(code: "MXN"))
+                LabeledContent("Pedidos", value: report.orders.formatted())
+                LabeledContent("Agente Arca", value: report.agentName)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Comentario del agente")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(report.agentComment)
+                }
+                
+                Label(
+                    report.signaturesCompleted ? "Proceso finalizado con ambas firmas" : "Firmas pendientes",
+                    systemImage: report.signaturesCompleted ? "checkmark.seal.fill" : "signature"
+                )
+                .foregroundStyle(report.signaturesCompleted ? .green : .orange)
+            }
+        }
+        .navigationTitle("Reportes mensuales")
     }
 }
 

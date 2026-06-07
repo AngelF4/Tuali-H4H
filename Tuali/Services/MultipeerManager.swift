@@ -84,6 +84,7 @@ final class MultipeerManager: NSObject {
     @ObservationIgnored private let advertiser: MCNearbyServiceAdvertiser
     @ObservationIgnored private let browser: MCNearbyServiceBrowser
     @ObservationIgnored private var pendingInvitationHandler: ((Bool, MCSession?) -> Void)?
+    @ObservationIgnored private var pendingOutgoingData: [Data] = []
     
     /// Nombre con el que este dispositivo es visible para otros peers.
     var localDisplayName: String { myPeerID.displayName }
@@ -188,10 +189,13 @@ final class MultipeerManager: NSObject {
         mode: MCSessionSendDataMode = .reliable,
         encoder: JSONEncoder = JSONEncoder()
     ) -> Bool {
-        let targetPeers = peers ?? session.connectedPeers
-        guard !targetPeers.isEmpty else { return false }
         do {
             let data = try encoder.encode(object)
+            let targetPeers = peers ?? session.connectedPeers
+            guard !targetPeers.isEmpty else {
+                pendingOutgoingData.append(data)
+                return false
+            }
             try session.send(data, toPeers: targetPeers, with: mode)
             return true
         } catch {
@@ -207,7 +211,10 @@ final class MultipeerManager: NSObject {
         mode: MCSessionSendDataMode = .reliable
     ) -> Bool {
         let targetPeers = peers ?? session.connectedPeers
-        guard !targetPeers.isEmpty else { return false }
+        guard !targetPeers.isEmpty else {
+            pendingOutgoingData.append(data)
+            return false
+        }
         do {
             try session.send(data, toPeers: targetPeers, with: mode)
             return true
@@ -226,6 +233,20 @@ final class MultipeerManager: NSObject {
         guard let data = lastReceivedJSON else { return nil }
         return try? decoder.decode(T.self, from: data)
     }
+    
+    private func flushPendingData() {
+        guard !session.connectedPeers.isEmpty, !pendingOutgoingData.isEmpty else { return }
+        let queuedData = pendingOutgoingData
+        pendingOutgoingData.removeAll()
+        
+        for data in queuedData {
+            do {
+                try session.send(data, toPeers: session.connectedPeers, with: .reliable)
+            } catch {
+                pendingOutgoingData.append(data)
+            }
+        }
+    }
 }
 
 // MARK: - MCSessionDelegate
@@ -243,6 +264,9 @@ extension MultipeerManager: MCSessionDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.connectedPeers = session.connectedPeers
+            if mapped == .connected {
+                self.flushPendingData()
+            }
             self.onPeerStateChange?(peerID, mapped)
         }
     }

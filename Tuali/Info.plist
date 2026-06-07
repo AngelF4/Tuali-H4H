@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict>
-	<key>UIAppFonts</key>
+	<dict>
+			<key>NSCameraUsageDescription</key>
+			<string>Tuali necesita acceso a la cámara para escanear el código QR de los pedidos.</string>
+			<key>NSLocationWhenInUseUsageDescription</key>
+			<string>Tuali utiliza tu ubicación para mostrar sucursales, zonas y coordinar entregas cercanas.</string>
+			<key>NSBluetoothAlwaysUsageDescription</key>
+			<string>Tuali utiliza Bluetooth para enviar pedidos directamente a agentes Arca cercanos sin internet.</string>
+		<key>UIAppFonts</key>
 	<array>
 		<string>Nexa-ExtraLight.ttf</string>
 		<string>Nexa-Heavy.ttf</string>
@@ -16,5 +22,18 @@
 		<string>_tuali-mpc._tcp</string>
 		<string>_tuali-mpc._udp</string>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>45.32.195.31</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

@@ -11,6 +11,7 @@ import SwiftUI
 @Observable
 final class CartStore {
     private(set) var items: [CartItem] = []
+    private(set) var lastAddedProductName: String?
     
     var totalCount: Int {
         items.reduce(0) { $0 + $1.quantity }
@@ -26,6 +27,13 @@ final class CartStore {
             items[index].quantity += quantity
         } else {
             items.append(CartItem(product: product, quantity: quantity))
+        }
+        lastAddedProductName = product.name
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            if lastAddedProductName == product.name {
+                lastAddedProductName = nil
+            }
         }
     }
     

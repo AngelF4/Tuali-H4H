@@ -9,7 +9,12 @@ import SwiftUI
 
 struct Orders: View {
     @Environment(CartStore.self) private var cart
+    @Environment(StoreDataStore.self) private var storeData
     @State private var viewModel = OrdersViewModel()
+    @State private var multipeer = MultipeerManager.shared
+    @State private var nearbyMessage: String?
+    @State private var isShowingOrderQR = false
+    @State private var selectedOrder: StoreTrackedOrder?
     
     var body: some View {
         NavigationStack {
@@ -20,8 +25,9 @@ struct Orders: View {
                     } else {
                         cartSection
                     }
+                    trackedOrdersSection
                     historySection
-                    qrSyncCard
+                    orderSharingSection
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -32,6 +38,48 @@ struct Orders: View {
                     title: "Mis Pedidos",
                     subtitle: "Seguimiento y gestión de compras"
                 )
+            }
+            .task {
+                multipeer.startAdvertising()
+                multipeer.startBrowsing()
+                multipeer.onReceiveJSON = { data, _ in
+                    if let response = try? JSONDecoder().decode(AgentOrderResponse.self, from: data) {
+                        storeData.updateOrder(id: response.orderID, status: response.status, detail: response.detail)
+                    } else if let report = try? JSONDecoder().decode(StoreVisitReportPayload.self, from: data) {
+                        storeData.addReport(comment: report.comment, agentName: report.agentName)
+                    }
+                }
+            }
+            .alert("Envío por zona Bluetooth", isPresented: Binding(
+                get: { nearbyMessage != nil },
+                set: { if !$0 { nearbyMessage = nil } }
+            )) {
+                Button("Aceptar", role: .cancel) {}
+            } message: {
+                Text(nearbyMessage ?? "")
+            }
+            .sheet(isPresented: $isShowingOrderQR) {
+                NavigationStack {
+                    VStack(spacing: 20) {
+                        Text("Código QR de tu pedido")
+                            .font(.custom("Nexa-Heavy", size: 22, relativeTo: .title2))
+                        QRCodeView(payload: selectedOrder?.qrPayload ?? "", size: 280)
+                        Text(selectedOrder?.total.formatted(.currency(code: "MXN")) ?? "")
+                            .foregroundStyle(.secondary)
+                        Text(selectedOrder?.itemSummary ?? "")
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                        Text(selectedOrder?.statusDetail ?? "")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                    }
+                    .padding()
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Cerrar") { isShowingOrderQR = false }
+                        }
+                    }
+                }
             }
         }
     }
@@ -87,6 +135,55 @@ struct Orders: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground))
         .clipShape(.rect(cornerRadius: 24))
+    }
+    
+    // MARK: - Order sharing
+    
+    @ViewBuilder
+    private var orderSharingSection: some View {
+        VStack(spacing: 12) {
+            bluetoothShareCard
+        }
+    }
+    
+    private var trackedOrdersSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Proceso de pedidos")
+                .font(.custom("Nexa-Heavy", size: 20, relativeTo: .title2))
+            
+            if storeData.orders.isEmpty {
+                Text("Cuando hagas un pedido aparecerá aquí su seguimiento y código QR.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(storeData.orders) { order in
+                    Button {
+                        selectedOrder = order
+                        isShowingOrderQR = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: order.status == .sent ? "paperplane.fill" : "checkmark.circle.fill")
+                                .foregroundStyle(order.status == .sent ? .blue : .green)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(order.status.rawValue)
+                                    .font(.headline)
+                                Text(order.statusDetail)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
+                            }
+                            Spacer()
+                            Text(order.total, format: .currency(code: "MXN"))
+                                .font(.headline)
+                        }
+                        .padding(14)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(.rect(cornerRadius: 16))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
     
     @ViewBuilder
@@ -204,31 +301,31 @@ struct Orders: View {
     }
     
     @ViewBuilder
-    private var qrSyncCard: some View {
+    private var bluetoothShareCard: some View {
         Button {
-            
+            createAndSendOrder()
         } label: {
             HStack(spacing: 16) {
-                Image(systemName: "qrcode")
+                Image(systemName: "antenna.radiowaves.left.and.right")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 48, height: 48)
-                    .background(Color.accentColor)
+                    .background(.blue)
                     .clipShape(.rect(cornerRadius: 12))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Sincronizar con QR")
+                    Text("Hacer pedido")
                         .font(.custom("Nexa-Heavy", size: 16, relativeTo: .headline))
-                    Text("Confirmar entrega en punto de venta")
+                    Text("Enviar por Bluetooth y generar seguimiento QR")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 
                 Spacer(minLength: 8)
                 
-                Image(systemName: "chevron.right")
+                Image(systemName: "paperplane.fill")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.blue)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -236,6 +333,61 @@ struct Orders: View {
             .clipShape(.rect(cornerRadius: 20))
         }
         .buttonStyle(.plain)
+        .disabled(cart.items.isEmpty)
+        .opacity(cart.items.isEmpty ? 0.5 : 1)
+    }
+    
+    private var bluetoothStatusText: String {
+        let count = multipeer.connectedPeers.count
+        if count > 0 {
+            return "\(count) dispositivo\(count == 1 ? "" : "s") conectado\(count == 1 ? "" : "s")"
+        }
+        return "Buscando dispositivos Tuali cercanos…"
+    }
+    
+    private func createAndSendOrder() {
+        guard !cart.items.isEmpty else {
+            nearbyMessage = "Agrega productos al pedido antes de enviarlo."
+            return
+        }
+        
+        let orderID = UUID()
+        let total = cart.totalPrice
+        let summary = cart.items.map { "\($0.quantity)x \($0.product.name)" }.joined(separator: ", ")
+        let qrPayload = orderQRPayload(orderID: orderID)
+        let payload = NearbyOrderPayload(
+            id: orderID,
+            sender: multipeer.localDisplayName,
+            storeName: "Abarrotes El Trébol",
+            zone: "Monterrey Centro",
+            latitude: 25.6866,
+            longitude: -100.3161,
+            createdAt: .now,
+            total: total,
+            items: cart.items.map(NearbyOrderItem.init)
+        )
+        
+        let wasSent = multipeer.sendJSON(payload)
+        let trackedOrder = StoreTrackedOrder(
+            id: orderID,
+            createdAt: .now,
+            total: total,
+            itemSummary: summary,
+            qrPayload: qrPayload,
+            status: .sent,
+            statusDetail: wasSent ? "Enviado al agente Arca cercano." : "Guardado. Se enviará cuando haya un agente conectado."
+        )
+        storeData.registerOrder(trackedOrder)
+        selectedOrder = trackedOrder
+        isShowingOrderQR = true
+        cart.clear()
+    }
+    
+    private func orderQRPayload(orderID: UUID) -> String {
+        let products = cart.items
+            .map { "\($0.product.sku):\($0.quantity)" }
+            .joined(separator: ",")
+        return "TUALI_ORDER|\(orderID.uuidString)|\(storeData.storeID)|\(products)|TOTAL:\(cart.totalPrice)"
     }
 }
 
@@ -251,6 +403,37 @@ struct PastOrder: Identifiable {
     let date: String
     let description: String
     let total: Double
+}
+
+struct NearbyOrderPayload: Codable, Sendable {
+    let id: UUID
+    let sender: String
+    let storeName: String
+    let zone: String
+    let latitude: Double
+    let longitude: Double
+    let createdAt: Date
+    let total: Double
+    let items: [NearbyOrderItem]
+}
+
+struct NearbyOrderItem: Codable, Sendable {
+    let name: String
+    let sku: String
+    let quantity: Int
+    let unitsPerBox: Int
+    let unitPrice: Double
+    let subtotal: Double
+    
+    @MainActor
+    init(_ item: CartItem) {
+        name = item.product.name
+        sku = item.product.sku
+        quantity = item.quantity
+        unitsPerBox = item.product.unitsPerBox
+        unitPrice = item.product.price
+        subtotal = item.subtotal
+    }
 }
 
 @MainActor

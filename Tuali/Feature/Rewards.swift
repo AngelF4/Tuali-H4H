@@ -9,6 +9,7 @@ import SwiftUI
 
 struct Rewards: View {
     @State private var viewModel = RewardsViewModel()
+    @Environment(StoreDataStore.self) private var storeData
     
     private let darkCard = Color.accentColor
     
@@ -23,6 +24,9 @@ struct Rewards: View {
                     rewardsCatalog
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .task {
+                await viewModel.loadIntelligence()
             }
             .contentMargins(.horizontal, 24, for: .scrollContent)
             .contentMargins(.vertical, 16, for: .scrollContent)
@@ -50,7 +54,12 @@ struct Rewards: View {
     
     @ViewBuilder
     private var levelCard: some View {
-        let level = viewModel.level
+        let level = LevelStatus(
+            name: storeData.points >= 5_000 ? "Nivel Diamante" : "Nivel Oro",
+            nextName: storeData.points >= 5_000 ? "Máximo nivel" : "Diamante",
+            totalPoints: storeData.points,
+            nextThreshold: max(5_000, storeData.points)
+        )
         
         VStack(spacing: 16) {
             HStack(alignment: .top, spacing: 16) {
@@ -147,7 +156,14 @@ struct Rewards: View {
     
     @ViewBuilder
     private var monthlyChallenge: some View {
-        let challenge = viewModel.monthlyChallenge
+        let completed = min(storeData.completedOrders, 40)
+        let challenge = MonthlyChallenge(
+            title: "Completa 40 pedidos este mes",
+            subtitle: "\(completed) de 40 pedidos completados",
+            icon: "flame.fill",
+            reward: 500,
+            progress: Double(completed) / 40
+        )
         
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -203,6 +219,76 @@ struct Rewards: View {
     
     @ViewBuilder
     private var suggestedGoals: some View {
+        if viewModel.isLoadingMetas {
+            suggestedGoalsLoading
+        } else if let metas = viewModel.metas, !metas.datos.sugerencias.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    Text("Metas sugeridas")
+                        .font(.custom("Nexa-Heavy", size: 17, relativeTo: .headline))
+                    
+                    Text("IA")
+                        .font(.custom("Nexa-Heavy", size: 10, relativeTo: .caption2))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.indigo.gradient)
+                        .clipShape(Capsule())
+                    
+                    Spacer()
+                    
+                    Button {
+                        Task { await viewModel.refreshIntelligence() }
+                    } label: {
+                        Label("Nuevas metas", systemImage: "arrow.clockwise")
+                            .font(.custom("Nexa-Heavy", size: 12, relativeTo: .caption))
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .tint(.primary)
+                }
+                
+                Text(metas.datos.notaTendencia)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                ForEach(metas.datos.sugerencias.map(SuggestedGoal.init(from:))) { goal in
+                    goalCard(goal: goal)
+                }
+            }
+        } else if let errorMessage = viewModel.intelligenceError {
+            intelligenceErrorCard(message: errorMessage)
+        }
+    }
+    
+    @ViewBuilder
+    private func intelligenceErrorCard(message: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("No se pudieron cargar las metas de IA")
+                    .font(.custom("Nexa-Heavy", size: 14, relativeTo: .subheadline))
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            
+            Spacer(minLength: 0)
+            
+            Button("Reintentar") {
+                Task { await viewModel.refreshIntelligence() }
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(14)
+        .background(Color.orange.opacity(0.1))
+        .clipShape(.rect(cornerRadius: 16))
+    }
+    
+    @ViewBuilder
+    private var suggestedGoalsLoading: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Text("Metas sugeridas")
@@ -217,27 +303,27 @@ struct Rewards: View {
                     .clipShape(Capsule())
                 
                 Spacer()
-                
-                Button {
-                    
-                } label: {
-                    Label("Nuevas metas", systemImage: "arrow.clockwise")
-                        .font(.custom("Nexa-Heavy", size: 12, relativeTo: .caption))
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
-                .tint(.primary)
             }
             
-            ForEach(viewModel.goals) { goal in
-                goalCard(goal: goal)
+            HStack(spacing: 12) {
+                ProgressView()
+                    .tint(.indigo)
+                Text("Cargando las recomendaciones de la IA…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(.rect(cornerRadius: 16))
         }
     }
     
     @ViewBuilder
     private func goalCard(goal: SuggestedGoal) -> some View {
-        switch goal.state {
+        let state: SuggestedGoal.State = storeData.acceptedGoalIDs.contains(goal.id) ? .inProgress : goal.state
+        switch state {
             case .inProgress, .accepted:
                 acceptedGoalCard(goal: goal)
             case .pending:
@@ -258,9 +344,11 @@ struct Rewards: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(goal.title)
                     .font(.custom("Nexa-Heavy", size: 14, relativeTo: .subheadline))
-                Text(goal.subtitle)
+                Text("En proceso · \(min(storeData.points, goal.targetPoints).formatted()) de \(goal.targetPoints.formatted()) puntos")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                ProgressView(value: Double(min(storeData.points, goal.targetPoints)), total: Double(goal.targetPoints))
+                    .tint(.accent)
             }
             
             Spacer(minLength: 8)
@@ -314,7 +402,7 @@ struct Rewards: View {
             
             HStack(spacing: 10) {
                 Button {
-                    
+                    storeData.acceptGoal(goal.id)
                 } label: {
                     Label("Aceptar meta", systemImage: "checkmark")
                         .font(.custom("Nexa-Heavy", size: 13, relativeTo: .footnote))
@@ -489,13 +577,38 @@ struct SuggestedGoal: Identifiable {
         case pending
     }
     
-    let id = UUID()
+    let id: String
     let title: String
     let subtitle: String
     let icon: String
     let reward: Int
+    let targetPoints: Int
     let state: State
     let rationale: String?
+}
+
+extension SuggestedGoal {
+    nonisolated init(from sugerencia: MetaSugerencia) {
+        self.init(
+            id: sugerencia.nivel,
+            title: "Meta \(sugerencia.nivel.capitalized)",
+            subtitle: "Ticket objetivo $\(Int(sugerencia.ticketObjetivo)) · +\(String(format: "%.1f", sugerencia.incrementoPct))%",
+            icon: Self.icon(for: sugerencia.nivel),
+            reward: Int(sugerencia.incrementoPct * 10),
+            targetPoints: Int(sugerencia.ticketObjetivo),
+            state: .pending,
+            rationale: sugerencia.descripcion
+        )
+    }
+    
+    nonisolated private static func icon(for nivel: String) -> String {
+        switch nivel.lowercased() {
+            case "conservadora": "tortoise.fill"
+            case "moderada": "hare.fill"
+            case "agresiva": "flame.fill"
+            default: "target"
+        }
+    }
 }
 
 struct CatalogReward: Identifiable {
@@ -525,32 +638,38 @@ final class RewardsViewModel {
         progress: 0.6
     )
     
-    let goals: [SuggestedGoal] = [
-        SuggestedGoal(
-            title: "3 pedidos en la semana",
-            subtitle: "En progreso - 1 de 3 completados",
-            icon: "cart.fill",
-            reward: 800,
-            state: .inProgress,
-            rationale: nil
-        ),
-        SuggestedGoal(
-            title: "Agrega snacks a tu próximo pedido",
-            subtitle: "Meta aceptada - En progreso",
-            icon: "checkmark",
-            reward: 350,
-            state: .accepted,
-            rationale: nil
-        ),
-        SuggestedGoal(
-            title: "Califica tus últimos 2 pedidos",
-            subtitle: "Ayuda a mejorar la experiencia",
-            icon: "hand.thumbsup.fill",
-            reward: 200,
-            state: .pending,
-            rationale: "¿Por qué esta meta? Tienes 2 pedidos sin calificar. Solo toma 30 segundos y te acerca al nivel Diamante."
-        )
-    ]
+    private(set) var metas: MetasResponse?
+    private(set) var isLoadingMetas: Bool = false
+    private(set) var intelligenceError: String?
+    
+    func loadIntelligence() async {
+        guard metas == nil, !isLoadingMetas else { return }
+        await fetchMetas()
+    }
+    
+    func refreshIntelligence() async {
+        guard !isLoadingMetas else { return }
+        await fetchMetas()
+    }
+    
+    private func fetchMetas() async {
+        isLoadingMetas = true
+        intelligenceError = nil
+        print("🏆 [RewardsViewModel] requesting /api/v1/metas…")
+        defer {
+            isLoadingMetas = false
+            print("🏆 [RewardsViewModel] finished requesting /api/v1/metas")
+        }
+        do {
+            let response = try await IntelligenceService.shared.fetchMetas()
+            print("🏆 [RewardsViewModel] metas OK · ticket actual: \(response.datos.ticketActual) · sugerencias: \(response.datos.sugerencias.map(\.nivel))")
+            metas = response
+        } catch {
+            print("🏆 [RewardsViewModel] metas FAILED: \(error.localizedDescription)")
+            metas = nil
+            intelligenceError = error.localizedDescription
+        }
+    }
     
     let featuredReward = CatalogReward(
         title: "$200 de descuento en tu próximo pedido",
